@@ -1,0 +1,84 @@
+# academybot.service — systemd unit untuk 6 bot Discord AFK di voice channel.
+#
+# Pasang di /etc/systemd/system/academybot.service
+# Dijalankan oleh deploy/setup.sh, jadi Anda tidak perlu menyalin manual.
+#
+# Catatan penting soal port:
+#   Process TIDAK butuh port masuk dari internet. Voice Discord adalah koneksi
+#   OUTBOUND (WebSocket + UDP) yangprasyaratnya sudah diizinkan di default
+#   Security List VCN. Jadi JANGAN membuka port 8080 di firewall OCI — tidak
+#   ada yang perlu/hrus bisacaa dari luar.
+#
+# Lihat log:
+#   journalctl -u academybot -f
+#   journalctl -u academybot -o cat -f     # tanpa prefix systemd
+
+[Unit]
+Description=AcademyBot — 6 bot Discord 24/7 stay di voice channel
+Documentation=https://discord.com/developers/applications
+After=network-online.target
+Wants=network-online.target
+
+# Jangan pernah berhenti mencoba start, sekecil apa pun kegagalannya.
+# Default systemd (5x restart / 10 detik) akan memicu "start-limit-hit" dan
+# leave bot offline setelah beberapa menit masalah.
+StartLimitIntervalSec=0
+StartLimitBurst=0
+
+[Service]
+Type=simple
+User=academybot
+Group=academybot
+WorkingDirectory=/opt/academybot
+
+# Token dibaca dari file .env (mode 600, milik user academybot).
+# Tanda "-" = file boleh tidak ada (service tetap jalan, tapi bot tidak akan
+# bisa login sampai .env diisi).
+EnvironmentFile=-/opt/academybot/.env
+
+Environment=NODE_ENV=production
+Environment=PORT=8080
+Environment=HOST=0.0.0.0
+Environment=LOG_LEVEL=info
+Environment=LOG_FORMAT=pretty
+Environment=SUMMARY_INTERVAL_MS=0
+
+ExecStart=/usr/bin/node index.js
+
+# --- Supervision -----------------------------------------------------------
+# Bot AFK harus hidup terus. Kalau proses mati, start lagi dalam 10 detik.
+Restart=always
+RestartSec=10
+
+# SIGTERM memberi index.js kesempatan leave voice channel dengan rapi
+# (timeout shutdown internal 15 detik, jadi beri ruang lebih).
+KillSignal=SIGTERM
+TimeoutStopSec=40
+
+# --- Output ----------------------------------------------------------------
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=academybot
+
+# --- Resource limits -------------------------------------------------------
+# Pemakaian terukur: ~127 MB RAM, ~10% dari satu core untuk 6 bot.
+# Batas 512 M jauh di atas kebutuhan, tapi mencegah process killer kalau ada
+# kebocoran memory.
+MemoryAccounting=true
+MemoryMax=512M
+TasksMax=256
+
+# --- Hardening -------------------------------------------------------------
+# Aplikasinya hanya butuh outbound network. Semua filesystem bisa read-only.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

@@ -186,6 +186,12 @@ Untuk bot AFK murni, **`minimal` sudah cukup** — bot tidak melakukan streaming
 
 Project sudah siap upload: ada `Procfile`, `discloud.config`, dan `.gitignore`.
 
+> Untuk **24/7 tanpa sleep di cloud gratis**, ikuti panduan lengkap di
+> **[`deploy/README.md`](deploy/README.md)** — Oracle Cloud Always Free dengan
+> systemd. Ringkasnya: voice Discord butuh WebSocket + UDP persisten, jadi
+> platform free tier yang me-suspend container (Render, Koyeb, Replit) TIDAK
+> bisa dipakai — bot akan keluar dari voice channel setiap container tidur.
+
 ### DisCloud
 Upload project → otomatis terdeteksi dari `discloud.config`. Tambahkan **Environment Variables** (`BOT_1_TOKEN`, dst.) di dashboard DisCloud. Node.js 22+ tersedia secara default.
 
