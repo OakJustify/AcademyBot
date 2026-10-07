@@ -51,6 +51,8 @@ class BotInstance {
     this.client = null;
     this.connection = null;
     this.guildId = config.guildId;
+    /** Cached Guild object — also the source of the voice adapter creator. */
+    this.guild = null;
 
     this.startedAt = Date.now();
     this.readyAt = null;
@@ -257,6 +259,7 @@ class BotInstance {
     }
 
     this.guildId = guild.id;
+    this.guild = guild;
   }
 
   /** Join the voice channel and wait until the voice connection is truly Ready. */
@@ -266,10 +269,18 @@ class BotInstance {
 
     const { group, selfMute, selfDeaf, daveEncryption } = this.config;
 
+    if (!this.guild) {
+      throw new Error('Internal error: the guild object is missing, so no voice adapter could be created.');
+    }
+
     const connection = joinVoiceChannel({
       channelId: this.config.vcId,
       guildId: this.guildId,
-      adapterCreator: this.client.options.adapterCreator,
+      // discord.js >= 14.16 no longer exposes `client.options.adapterCreator`.
+      // `guild.voiceAdapterCreator` is the supported bridge: it registers the
+      // adapter in `client.voice.adapters` so gateway VOICE_STATE_UPDATE and
+      // VOICE_SERVER_UPDATE packets reach @discordjs/voice.
+      adapterCreator: this.guild.voiceAdapterCreator,
       // A unique group keeps every instance isolated: joining again under the
       // same group is what makes @discordjs/voice clean up our stale socket.
       group,
@@ -403,12 +414,23 @@ class BotInstance {
     this._detachers.push(() => connection.off('stateChange', onStateChange));
   }
 
+  /**
+   * Broadcast our configured presence over the gateway.
+   *
+   * `ClientUser.setPresence()` is SYNCHRONOUS in discord.js v14: it patches the
+   * cache and writes straight to the gateway socket, returning a ClientPresence
+   * — not a Promise. Chaining `.catch()` onto it throws a TypeError and would
+   * take down every bot on every startup, so only a plain try/catch is used.
+   */
   _applyPresence() {
     const { client } = this;
     if (!client?.user || !this.config.presence) return;
-    client.user
-      .setPresence(this.config.presence)
-      .catch((error) => this.log.debug(`Could not set presence: ${error.message}`));
+    try {
+      client.user.setPresence(this.config.presence);
+      this.log.debug('Presence applied');
+    } catch (error) {
+      this.log.debug(`Could not set presence: ${error.message}`);
+    }
   }
 
   // =========================================================================

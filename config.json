@@ -30,37 +30,43 @@
     {
       "name": "AcademyBot-1",
       "token": "${BOT_1_TOKEN}",
-      "vc_id": "1234567890123456781",
+      "vc_id": "1555179982135885824",
+      "guild_id": "1412673117272145993",
       "enabled": true
     },
     {
       "name": "AcademyBot-2",
       "token": "${BOT_2_TOKEN}",
-      "vc_id": "1234567890123456782",
+      "vc_id": "1556336912544043028",
+      "guild_id": "1412673117272145993",
       "enabled": true
     },
     {
       "name": "AcademyBot-3",
       "token": "${BOT_3_TOKEN}",
-      "vc_id": "1234567890123456783",
+      "vc_id": "1556336992902447124",
+      "guild_id": "1412673117272145993",
       "enabled": true
     },
     {
       "name": "AcademyBot-4",
       "token": "${BOT_4_TOKEN}",
-      "vc_id": "1234567890123456784",
+      "vc_id": "1556337042135187587",
+      "guild_id": "1412673117272145993",
       "enabled": true
     },
     {
       "name": "AcademyBot-5",
       "token": "${BOT_5_TOKEN}",
-      "vc_id": "1234567890123456785",
+      "vc_id": "1556337016252407888",
+      "guild_id": "1412673117272145993",
       "enabled": true
     },
     {
       "name": "AcademyBot-6",
       "token": "${BOT_6_TOKEN}",
-      "vc_id": "1234567890123456786",
+      "vc_id": "1556336368983220254",
+      "guild_id": "1412673117272145993",
       "enabled": true
     }
   ]
