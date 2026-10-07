@@ -1,0 +1,67 @@
+{
+  "settings": {
+    "port": 8080,
+    "host": "0.0.0.0",
+    "startupStaggerMs": 1500,
+    "selfMute": true,
+    "selfDeaf": true,
+    "daveEncryption": true,
+    "limitCache": false,
+    "enableInviteEndpoint": true,
+    "presence": {
+      "status": "online",
+      "activities": []
+    },
+    "reconnect": {
+      "maxAttempts": 0,
+      "initialDelay": 2000,
+      "maxDelay": 60000,
+      "factor": 1.8,
+      "jitter": 0.3
+    },
+    "watchdog": {
+      "enabled": true,
+      "intervalMs": 30000,
+      "voiceRecoveryGraceMs": 20000,
+      "voiceJoinTimeoutMs": 25000
+    }
+  },
+  "bots": [
+    {
+      "name": "AcademyBot-1",
+      "token": "${BOT_1_TOKEN}",
+      "vc_id": "1234567890123456781",
+      "enabled": true
+    },
+    {
+      "name": "AcademyBot-2",
+      "token": "${BOT_2_TOKEN}",
+      "vc_id": "1234567890123456782",
+      "enabled": true
+    },
+    {
+      "name": "AcademyBot-3",
+      "token": "${BOT_3_TOKEN}",
+      "vc_id": "1234567890123456783",
+      "enabled": true
+    },
+    {
+      "name": "AcademyBot-4",
+      "token": "${BOT_4_TOKEN}",
+      "vc_id": "1234567890123456784",
+      "enabled": true
+    },
+    {
+      "name": "AcademyBot-5",
+      "token": "${BOT_5_TOKEN}",
+      "vc_id": "1234567890123456785",
+      "enabled": true
+    },
+    {
+      "name": "AcademyBot-6",
+      "token": "${BOT_6_TOKEN}",
+      "vc_id": "1234567890123456786",
+      "enabled": true
+    }
+  ]
+}

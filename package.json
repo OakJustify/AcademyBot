@@ -1,0 +1,37 @@
+{
+  "name": "discord-afk-multi-bot-stay",
+  "version": "1.0.0",
+  "description": "Multi-bot 24/7 Voice Channel Stay — menjalankan banyak bot Discord dalam 1 proses, masing-masing standby permanen di Voice Channel dengan auto-reconnect.",
+  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "doctor": "node scripts/doctor.js",
+    "invite": "node scripts/generate-invite.js",
+    "channels": "node scripts/list-channels.js",
+    "logs": "npm start --silent"
+  },
+  "keywords": [
+    "discord",
+    "discord.js",
+    "afk",
+    "voice",
+    "stay",
+    "multi-bot",
+    "discord-voice",
+    "24-7"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@discordjs/voice": "^0.19.2",
+    "discord.js": "^14.27.0",
+    "dotenv": "^18.0.6",
+    "express": "^5.2.1",
+    "libsodium-wrappers": "^0.8.4"
+  }
+}

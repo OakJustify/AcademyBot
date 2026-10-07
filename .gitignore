@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets — JANGAN pernah di-commit
+.env
+.env.*
+!.env.example
+
+# Config lokal yang berisi token (config.json memang ikut di-deploy,
+# tapi kalau Anda memakai token literal, lebih aman simpan sebagai .env)
+config.local.json
+config.*.local.json
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Cloud platform
+.render/
+.vercel/
+fly.toml
+railway.json
+.dockerignore
+Dockerfile
