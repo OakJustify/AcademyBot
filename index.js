@@ -18,7 +18,6 @@ const path = require('node:path');
 const { createLogger, configure } = require('./src/logger');
 const { loadDotEnv, loadSettings } = require('./src/settings');
 const { BotManager } = require('./src/BotManager');
-const { createHttpServer } = require('./src/httpServer');
 const utils = require('./src/utils');
 
 const SHUTDOWN_TIMEOUT_MS = 15_000;
@@ -63,8 +62,12 @@ function printBanner(settings, log) {
 
   log.info(line);
   log.info(`  Config : ${path.relative(process.cwd(), settings.configPath) || settings.configPath}`);
-  log.info(`  Health : http://${settings.host}:${settings.port}/health`);
-  log.info(`  Invite : http://${settings.host}:${settings.port}/invite`);
+  if (settings.httpEnabled) {
+    log.info(`  Health : http://${settings.host}:${settings.port}/health`);
+    log.info(`  Invite : http://${settings.host}:${settings.port}/invite`);
+  } else {
+    log.info('  Health : disabled (HTTP_ENABLED=false) — uptime dipantau via log');
+  }
   log.info('════════════════════════════════════════════════════════════════════════');
   log.info('');
 }
@@ -90,9 +93,18 @@ async function main() {
 
   // 4) HTTP keep-alive server FIRST, so platform health checks succeed
   //    immediately — even while the bots are still logging in.
+  //    Skipped entirely when HTTP_ENABLED=false: Express alone costs ~21 MB of
+  //    RSS, which is decisive on hosts with a tight memory cap.
   const manager = new BotManager(settings);
-  const httpService = createHttpServer(settings, manager);
-  await httpService.listen(settings.port, settings.host);
+  let httpService = null;
+
+  if (settings.httpEnabled) {
+    // Required lazily so Express is never loaded (and never occupies memory)
+    // when the HTTP server is disabled.
+    const { createHttpServer } = require('./src/httpServer');
+    httpService = createHttpServer(settings, manager);
+    await httpService.listen(settings.port, settings.host);
+  }
 
   // 5) Operator overview.
   printBanner(settings, log);
@@ -113,7 +125,7 @@ async function main() {
     }, SHUTDOWN_TIMEOUT_MS);
     forceExit.unref();
 
-    await Promise.allSettled([manager.shutdown(10_000), httpService.close()]);
+    await Promise.allSettled([manager.shutdown(10_000), httpService ? httpService.close() : Promise.resolve()]);
     clearTimeout(forceExit);
 
     log.info('All bots left their voice channels. Goodbye.');

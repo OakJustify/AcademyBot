@@ -364,6 +364,14 @@ function loadSettings({ configPath, requireTokens = true } = {}) {
       process.env.ENABLE_INVITE_ENDPOINT ?? globalSettings.enableInviteEndpoint,
       true,
     ),
+    // The keep-alive/status server costs ~21 MB of RSS because of Express. It
+    // only exists to satisfy HTTP health checkers (Render, Fly, Koyeb, ...).
+    // Hosts that track bot uptime over the gateway instead — DisCloud, pm2,
+    // systemd — don't need it, so it can be switched off entirely.
+    httpEnabled: toBoolean(
+      process.env.HTTP_ENABLED ?? globalSettings.httpEnabled ?? globalSettings.http_enabled,
+      true,
+    ),
     startupStaggerMs: toInteger(
       process.env.STARTUP_STAGGER_MS ?? globalSettings.startupStaggerMs,
       1_500,

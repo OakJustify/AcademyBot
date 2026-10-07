@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node index.js",
+    "start:lean": "node --max-old-space-size=96 --max-semi-space-size=1 index.js",
     "dev": "node --watch index.js",
     "doctor": "node scripts/doctor.js",
     "invite": "node scripts/generate-invite.js",
