@@ -72,19 +72,70 @@ async function apiGet(path, token) {
   return response.json();
 }
 
-/** Does the bot itself have ViewChannel + Connect on this channel? */
-function joinableFor(botMember, channel) {
-  if (!botMember?.permissions) return false;
-  const VIEW_CHANNEL = 1 << 10; // 1024
-  const CONNECT = 1 << 20; // 1048576
-  const granted = BigInt(botMember.permissions);
-  const explicit = channel.permission_overwrites?.find((o) => o.id === channel.guild_id);
-  if (explicit) {
-    const deny = BigInt(explicit.deny ?? 0);
-    const allow = BigInt(explicit.allow ?? 0);
-    return ((granted & ~deny & CONNECT) === CONNECT) && ((granted & ~deny & VIEW_CHANNEL) === VIEW_CHANNEL) && (allow & CONNECT) === CONNECT;
+/** Permission bitfields this bot actually needs to sit idle in a channel. */
+const VIEW_CHANNEL = 1n << 10n; // 1024
+const CONNECT = 1n << 20n; // 1048576
+const ADMINISTRATOR = 1n << 3n; // 8 — bypasses all channel overwrites
+
+/**
+ * Resolve a member's effective permissions in a channel.
+ *
+ * Two Discord quirks this has to work around:
+ *   1. `GET /guilds/{id}/members/{user_id}` does NOT return a computed
+ *      `permissions` field, so the guild-level baseline is rebuilt here from
+ *      @everyone plus every role the member holds — exactly how Discord does it.
+ *   2. ADMINISTRATOR bypasses every channel overwrite, so it short-circuits.
+ *
+ * Otherwise the documented order applies: @everyone overwrite -> role overwrites
+ * (highest position first) -> member-specific overwrite, denies before allows.
+ */
+function effectivePermissions(guild, member, channel) {
+  const everyoneRoleId = guild.id;
+  const roles = guild.roles ?? [];
+  const roleById = new Map(roles.map((role) => [role.id, role]));
+  const rolePosition = new Map(roles.map((role) => [role.id, role.position ?? 0]));
+  const memberRoleIds = member.roles ?? [];
+  const userId = member.user?.id ?? member.id;
+
+  let permissions = BigInt(roleById.get(everyoneRoleId)?.permissions ?? 0);
+  for (const roleId of memberRoleIds) {
+    permissions |= BigInt(roleById.get(roleId)?.permissions ?? 0);
   }
-  return (granted & CONNECT) === CONNECT && (granted & VIEW_CHANNEL) === VIEW_CHANNEL;
+
+  if ((permissions & ADMINISTRATOR) === ADMINISTRATOR) return permissions;
+
+  const overwrites = new Map((channel.permission_overwrites ?? []).map((o) => [o.id, o]));
+  const apply = (overwrite) => {
+    if (!overwrite) return;
+    permissions &= ~BigInt(overwrite.deny ?? 0);
+    permissions |= BigInt(overwrite.allow ?? 0);
+  };
+
+  apply(overwrites.get(everyoneRoleId));
+
+  // Highest-positioned role wins, so sort descending.
+  const sorted = [...memberRoleIds].sort((a, b) => (rolePosition.get(b) ?? 0) - (rolePosition.get(a) ?? 0));
+  for (const roleId of sorted) apply(overwrites.get(roleId));
+
+  apply(overwrites.get(userId));
+
+  return permissions;
+}
+
+/** Can this specific bot account view the channel and connect to it? */
+function resolveAccess(guild, member, channel) {
+  if (!member) return { can_view: false, can_connect: false, joinable: false, administrator: false };
+
+  const permissions = effectivePermissions(guild, member, channel);
+  const canView = (permissions & VIEW_CHANNEL) === VIEW_CHANNEL;
+  const canConnect = (permissions & CONNECT) === CONNECT;
+
+  return {
+    can_view: canView,
+    can_connect: canConnect,
+    joinable: canView && canConnect,
+    administrator: (permissions & ADMINISTRATOR) === ADMINISTRATOR,
+  };
 }
 
 async function main() {
@@ -120,23 +171,24 @@ async function main() {
       continue;
     }
 
+    // Full guild object is required: the `roles` array carries role positions,
+    // which decide overwrite precedence.
+    const fullGuild = await apiGet(`/guilds/${guild.id}`, token).catch(() => guild);
     const member = await apiGet(`/guilds/${guild.id}/members/${me.id}`, token).catch(() => null);
     const voice = channels
       .filter((ch) => VOICE_TYPES.has(ch.type))
-      .map((ch) => ({
-        guild_id: guild.id,
-        guild_name: guild.name,
-        channel_id: ch.id,
-        channel_name: ch.name,
-        type: VOICE_TYPES.get(ch.type),
-        joinable: joinableFor(member, ch),
-      }))
+      .map((ch) => ({ channel_id: ch.id, channel_name: ch.name, type: VOICE_TYPES.get(ch.type), ...resolveAccess(fullGuild, member, ch) }))
       .sort((a, b) => a.channel_name.localeCompare(b.channel_name));
 
-    report.push({ ...voice, guild_name: guild.name });
+    report.push({
+      guild_id: guild.id,
+      guild_name: guild.name,
+      administrator: member ? resolveAccess(fullGuild, member, channels[0] ?? {}).administrator : false,
+      channels: voice,
+    });
   }
 
-  const flat = report.flat();
+  const flat = report.flatMap((guild) => guild.channels);
 
   if (asJson) {
     console.log(JSON.stringify({ bot: { name: me.username, id: me.id }, guilds: report }, null, 2));
@@ -157,17 +209,18 @@ async function main() {
     return;
   }
 
-  let currentGuild = null;
-  for (const entry of flat) {
-    if (entry.guild_id !== currentGuild) {
-      currentGuild = entry.guild_id;
-      console.log(`\n ${paint(currentGuild, c.bold)}  (guild_id: ${entry.guild_id})`);
+  for (const guild of report) {
+    console.log(`\n ${paint(guild.guild_name, c.bold)}  (guild_id: ${guild.guild_id})`);
+    if (guild.administrator) {
+      console.log(` ${paint('bot has ADMINISTRATOR here — every channel below is accessible', c.dim)}`);
     }
-    const mark = entry.joinable
-      ? paint('joinable', c.green)
-      : paint('no-access', c.yellow);
-    console.log(`   ${mark}  ${entry.type.padEnd(5)}  ${entry.channel_name}`);
-    console.log(`     ${paint('vc_id: ' + entry.channel_id, c.cyan)}`);
+    for (const entry of guild.channels) {
+      const mark = entry.joinable
+        ? paint('joinable ', c.green)
+        : paint(`${entry.can_view ? 'no-connect' : 'no-view   '}${entry.can_connect ? '' : '/no-connect'}`, c.yellow);
+      console.log(`   ${mark}  ${entry.type.padEnd(5)}  ${entry.channel_name}`);
+      console.log(`     ${paint('vc_id: ' + entry.channel_id, c.cyan)}`);
+    }
   }
 
   console.log(`\n${line}`);
@@ -177,8 +230,8 @@ async function main() {
   console.log('   3. Run `npm run doctor`, then `npm start`.');
   if (flat.some((e) => !e.joinable)) {
     console.log('');
-    console.log(paint(' Note: channels marked "no-access" need the bot invited with', c.yellow));
-    console.log(paint(' "View Channel" + "Connect" permissions — re-run `npm run invite`.', c.yellow));
+    console.log(paint(' Note: "no-view" / "no-connect" means the bot cannot use that channel.', c.yellow));
+    console.log(paint(' Fix it in Discord: channel settings → Permissions → add the bot role.', c.yellow));
   }
   console.log(line);
   console.log('');
